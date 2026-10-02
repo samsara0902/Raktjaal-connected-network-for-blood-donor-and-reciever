@@ -3,7 +3,7 @@
 <img src="https://capsule-render.vercel.app/api?type=waving&height=230&color=0:7f0000,50:c62828,100:ef5350&text=RaktJaal&fontSize=74&fontColor=ffffff&fontAlignY=38&desc=Rakt%20(blood)%20%2B%20Jaal%20(network)&descAlignY=60&descSize=20&animation=fadeIn" alt="RaktJaal banner" width="100%" />
 
 <a href="https://raktjaal.vercel.app/">
-  <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=600&size=20&pause=1200&color=E53935&center=true&vCenter=true&width=640&lines=Find+compatible+blood+donors+in+seconds;No+login+needed+to+ask+for+blood;Location-aware.+Fast.+Community-driven." alt="Typing tagline" />
+  <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=600&size=20&pause=1200&color=E53935&center=true&vCenter=true&width=640&lines=Find+compatible+blood+donors+in+seconds;Register+once.+Find+donors+in+seconds;Location-aware.+Fast.+Community-driven." alt="Typing tagline" />
 </a>
 
 <br/>
@@ -50,7 +50,7 @@ Someone in a hospital panics and posts a message on a WhatsApp group or an Insta
 
 **RaktJaal replaces the forwarding chain with a direct, location-aware match.**
 
-Post a request or register as a donor, and the app finds compatible people within a real radius in seconds. No group forwarding. No login hurdles for the person standing in a hospital corridor.
+Post a request or register as a donor, and the app finds compatible people within a real radius in seconds. No group forwarding. Just register, sign in, and get matched with the right people nearby.
 
 <table>
 <tr>
@@ -63,8 +63,8 @@ Matches in seconds, not hours of forwarding
 Only compatible donors within a real 10 km radius
 </td>
 <td align="center" width="33%">
-<h3>🔓 Frictionless</h3>
-Ask for blood without creating an account
+<h3>🔐 Secure</h3>
+Verified accounts with email OTP and Google sign-in
 </td>
 </tr>
 </table>
@@ -77,7 +77,7 @@ Ask for blood without creating an account
 
 ```mermaid
 flowchart LR
-    A([🏥 Someone needs blood]) --> B[Fills a quick request<br/>no login needed]
+    A([🏥 Someone needs blood]) --> B[Registers, signs in<br/>and posts a request]
     C([🙋 A donor signs up]) --> D[Registers blood type<br/>and location]
     B --> E{{📍 RaktJaal matches<br/>blood type + distance}}
     D --> E
@@ -123,7 +123,7 @@ flowchart LR
 <td width="50%" valign="top">
 
 #### 🆘 Ask for blood
-*No login required*
+*Sign in to post a request*
 
 - Blood type, units and hospital
 - Urgency level and contact number
@@ -134,7 +134,7 @@ flowchart LR
 <td width="50%" valign="top">
 
 #### 🙋 Become a donor
-*Sign in once, help many times*
+*Register once, help many times*
 
 - Add name, phone, blood type and location
 - Phone numbers are **never shown** in match lists
@@ -304,10 +304,10 @@ People trust us with health-related details, so we take this seriously.
 
 ### 🚧 Relaxed in Phase 1
 
-To keep hospital-side use friction-free, the current `firestore.rules` are permissive:
+To move fast in Phase 1, the current `firestore.rules` are permissive:
 
 - Donor documents are readable so matching can run client-side
-- Blood requests can be created without login
+- Blood request rules are not yet locked down at the database level
 
 **Before a public launch:** move `phone` into a subcollection or a Cloud Function–mediated reveal, so this is enforced at the database layer.
 
