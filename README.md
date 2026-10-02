@@ -1,268 +1,328 @@
-# Raktjaal-connected-network-for-blood-donor-and-reciever
+<div align="center">
 
-Blood requests in India still mostly happen the way they always have: someone
-posts a frantic message on a WhatsApp group or Instagram story, it gets
-forwarded a dozen times, and by the time it reaches an actual compatible
-donor nearby, the window has often closed. RaktJaal replaces that chain with
-a direct, location-aware match: post a request or register as a donor, and
-the app finds compatible people within a real radius in seconds — no group
-forwarding, no login friction for the person who's actually in a hospital.
+<img src="https://capsule-render.vercel.app/api?type=waving&height=230&color=0:7f0000,50:c62828,100:ef5350&text=RaktJaal&fontSize=74&fontColor=ffffff&fontAlignY=38&desc=Rakt%20(blood)%20%2B%20Jaal%20(network)&descAlignY=60&descSize=20&animation=fadeIn" alt="RaktJaal banner" width="100%" />
 
-This repo implements **Phase 1 (core flow)** end-to-end — email/password
-(with mandatory email-OTP verification) and Google sign-in, a real
-Firestore-backed donor directory, and geohash-based proximity matching —
-scaffolded so Phases 2–5 (below) are additions, not rewrites.
+<a href="https://raktjaal.vercel.app/">
+  <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=600&size=20&pause=1200&color=E53935&center=true&vCenter=true&width=640&lines=Find+compatible+blood+donors+in+seconds;No+login+needed+to+ask+for+blood;Location-aware.+Fast.+Community-driven." alt="Typing tagline" />
+</a>
+
+<br/>
+
+**A connected network that helps blood donors and receivers find each other, fast.**
+
+<br/>
+
+![Next.js](https://img.shields.io/badge/Next.js_14-000000?style=for-the-badge&logo=nextdotjs&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
+![Firebase](https://img.shields.io/badge/Firebase-FFCA28?style=for-the-badge&logo=firebase&logoColor=black)
+![Tailwind](https://img.shields.io/badge/Tailwind_CSS-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white)
+![Vercel](https://img.shields.io/badge/Deployed_on-Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white)
+
+![Phase](https://img.shields.io/badge/Phase_1-Core_Flow_Live-c62828?style=flat-square)
+![Made at](https://img.shields.io/badge/Made_at-PSIT_Kanpur-1e88e5?style=flat-square)
+![Made with love](https://img.shields.io/badge/Made_with-%E2%9D%A4-e53935?style=flat-square)
+
+<br/>
+
+[**🌐 Live Demo**](https://raktjaal.vercel.app/) &nbsp;•&nbsp;
+[**🚀 Quick Start**](#-quick-start) &nbsp;•&nbsp;
+[**✨ Features**](#-features) &nbsp;•&nbsp;
+[**🗺️ Roadmap**](#️-roadmap) &nbsp;•&nbsp;
+[**🐞 Report a Bug**](https://github.com/samsara0902/Raktjaal-connected-network-for-blood-donor-and-reciever/issues)
+
+</div>
+
+<br/>
 
 ---
 
-## 🩸 What's Built — Phase 1 (Core Flow)
+## 😟 The Problem
 
-- **Auth** — `/login` and `/register` (both routed through the shared
-  `legacy/AuthPage.jsx`): email/password (Firebase Auth) plus a "Continue
-  with Google" button (`signInWithPopup`). New email/password accounts must
-  verify a 6-digit email OTP before they can sign in — see
-  [Email verification & account deletion](#-email-verification--account-deletion)
-  below. Either path lands the user with a Firebase Auth `uid`, which is what
-  donor and user documents are keyed by in Firestore.
-- **Requester form** — `/request`: blood type, units, hospital, location
-  (browser geolocation or manual lat/lng), urgency, and a contact number.
-  No login required to post a request — matches the "no login friction"
-  hospital-view goal.
-- **Donor signup** — `/donor/signup`: requires sign-in (redirects to
-  `/login?redirect=/donor/signup` if not authenticated), then collects
-  name, phone, blood type, and location, and writes to `donors/{uid}`.
-- **Static matching** — on submit, the requester is routed to
-  `/request/[id]`, which runs a one-shot Firestore query for donors of the
-  matching blood type within a geohash box around the request, filters to
-  a true 10km radius (haversine), and sorts nearest-first.
-- **Privacy-first by default**: donor phone numbers are never rendered in
-  the match list, even though Phase 1's Firestore rules don't yet enforce
-  that server-side — see [Security note](#-security-note).
+Think about how a blood request usually happens in India today.
+
+Someone in a hospital panics and posts a message on a WhatsApp group or an Instagram story. It gets forwarded a dozen times. By the time it reaches a donor who is compatible **and** nearby, the window has often closed.
+
+> 🩸 *The blood exists. The donors exist. They just never find each other in time.*
+
+<br/>
+
+## 💡 Our Solution
+
+**RaktJaal replaces the forwarding chain with a direct, location-aware match.**
+
+Post a request or register as a donor, and the app finds compatible people within a real radius in seconds. No group forwarding. No login hurdles for the person standing in a hospital corridor.
+
+<table>
+<tr>
+<td align="center" width="33%">
+<h3>⚡ Fast</h3>
+Matches in seconds, not hours of forwarding
+</td>
+<td align="center" width="33%">
+<h3>📍 Local</h3>
+Only compatible donors within a real 10 km radius
+</td>
+<td align="center" width="33%">
+<h3>🔓 Frictionless</h3>
+Ask for blood without creating an account
+</td>
+</tr>
+</table>
+
+<br/>
+
+---
+
+## 🔄 How It Works
+
+```mermaid
+flowchart LR
+    A([🏥 Someone needs blood]) --> B[Fills a quick request<br/>no login needed]
+    C([🙋 A donor signs up]) --> D[Registers blood type<br/>and location]
+    B --> E{{📍 RaktJaal matches<br/>blood type + distance}}
+    D --> E
+    E --> F([✅ Nearest compatible donors<br/>shown nearest-first])
+
+    style A fill:#ffebee,stroke:#c62828,color:#000
+    style C fill:#ffebee,stroke:#c62828,color:#000
+    style E fill:#c62828,stroke:#7f0000,color:#fff
+    style F fill:#e8f5e9,stroke:#2e7d32,color:#000
+```
+
+<details>
+<summary><b>🔬 Curious how the matching works under the hood?</b></summary>
+
+<br/>
+
+1. Every donor is saved with a **precision-6 geohash** of their location.
+2. A request searches the **centre cell and its 8 neighbours**, so a donor just across a cell boundary isn't missed.
+3. Every candidate is re-checked with the **haversine formula** against a true **10 km** radius.
+4. Results are sorted **nearest-first**.
+
+</details>
+
+<br/>
 
 ---
 
 ## ✨ Features
 
-### Authentication
-- Email/password **and** Google sign-in (`signInWithPopup`), both landing
-  the user with the same kind of Firebase Auth `uid`.
-- **Mandatory email verification**: a new email/password account can't sign
-  in until it verifies a 6-digit OTP sent to its own inbox. Signing in with
-  an unverified account automatically re-sends the OTP and signs the session
-  back out with a clear message, instead of leaving it half-authenticated.
-- Friendly, mapped error messages for the Firebase Auth codes that actually
-  come up in practice — wrong password, popup closed, account-exists-with-
-  different-credential, weak password, too many attempts, etc.
-- Password reset via `sendPasswordResetEmail`.
-- Account deletion is itself OTP-gated (see below), with the underlying
-  Firebase user and Firestore profile removed together via a server route.
+### 🔑 Sign in, safely
 
-### Email verification & account deletion
-- OTP codes are generated and checked **server-side**: `POST /api/email-otp/send`
-  and `POST /api/email-otp/verify` (used for registration), and
-  `POST /api/account/delete` (used for account deletion), all authenticated
-  with a Firebase ID token and backed by the Firebase Admin SDK.
-- Codes are 6 digits, SHA-256 hashed before being stored in an `emailOtps`
-  Firestore collection (never stored in plaintext), expire after 10 minutes,
-  allow at most 5 incorrect attempts, and enforce a 60-second resend
-  cooldown — all server-enforced in `backend/lib/emailOtp.ts`.
-- Email delivery goes through **Gmail SMTP via Nodemailer** — see
-  [Email OTP setup](#-email-otp-setup) below for the exact environment
-  variables required.
+| | |
+| :-- | :-- |
+| 📧 **Email + Google** | Sign in with email and password, or tap "Continue with Google" |
+| 🔢 **OTP verification** | New email accounts must verify a 6-digit code sent to their inbox |
+| 🔁 **Password reset** | Forgot it? Reset by email |
+| 💬 **Friendly errors** | Clear messages instead of cryptic Firebase codes |
 
-### Donor matching
-- **Geohash-indexed search**: donors are written with a precision-6 geohash;
-  a request query fans out across the center cell and its 8 neighbors so a
-  donor just across a cell boundary isn't missed.
-- **True-radius filtering**: every candidate is re-checked with a haversine
-  distance calculation against a 10km cap, then sorted nearest-first.
-- One-shot (`getDocs`) for now — Phase 2 swaps this for `onSnapshot` to make
-  the match list live.
+### 🩸 Core flow
 
-### Account / profile
-- A real `users/{uid}` Firestore profile (name, DOB, address, blood type,
-  phone, secondary emails, profile photo) — separate from the `donors`
-  collection, which exists purely for geo-matching and needs phone + lat/lng.
-- Profile photo upload with client-side processing: every photo is
-  center-cropped to a square (1:1, like Instagram), re-encoded as JPEG and
-  squeezed under 400KB before it's stored. Changing your photo also refreshes
-  your avatar inside existing inbox conversations. Tapping a photo (including
-  in Donation history) opens it full-screen.
-- **Blood group is locked** after it's saved. "Contact us to change" opens a
-  pre-filled Gmail draft to `raktjaal@gmail.com` (name, account email, current
-  group). After you verify the proof, unlock that user (see *Admin: unlock a
-  blood group* below); they can then pick the correct group once, and it locks
-  again automatically.
-- Password changes made from the profile page send a "your password was
-  changed" security email.
-- Donation history lists verified donations only; there is no "eligible again"
-  countdown.
-- Inline profile editing, session/device info, and account deletion, all
-  wired to the real Firebase Auth + Firestore profile — not local state.
+<table>
+<tr>
+<td width="50%" valign="top">
 
-### Inbox, notifications and filters
-- The inbox is resizable: drag the divider between the sidebar and the page,
-  or between the conversation list and the chat (double-click a divider to
-  reset). Widths are remembered per browser.
-- Notifications are actionable. Tapping one jumps to the right screen, and
-  requests can be handled straight from the bell: **Approve / Decline** a
-  direct request, **I can donate** on an open request, **Open chat**, or
-  **Confirm donation**. New notifications carry `kind`, `requestId` and
-  `threadId` fields (see `AppNotification`).
-- Donate Blood filters use custom dropdowns: a blood-group chip grid and a
-  search-radius list with a Reset button.
+#### 🆘 Ask for blood
+*No login required*
 
-### Product surface (UI-complete, partly mocked)
-- A full marketing landing page, redesigned auth screens, and an
-  **ActionPage** — the two-tab "Need Blood" / "Donate Blood" screen a
-  signed-in person lands on after login.
-- ActionPage's sign-in state, profile data, and avatar are real (Firebase
-  Auth + the same `users/{uid}` doc ProfilePage reads). The nearby-donor
-  list, the map panel, notifications, and the inbox are intentionally
-  **mock UI** for now — clearly marked `MOCK_` in the source — since wiring
-  them needs schemas (a live directory query, a messaging collection) that
-  don't exist yet. Nothing here sends a real push, SMS, or call.
+- Blood type, units and hospital
+- Urgency level and contact number
+- Use browser location or enter coordinates
+- Instantly see matching donors
+
+</td>
+<td width="50%" valign="top">
+
+#### 🙋 Become a donor
+*Sign in once, help many times*
+
+- Add name, phone, blood type and location
+- Phone numbers are **never shown** in match lists
+- Stored securely, matched by distance
+
+</td>
+</tr>
+</table>
+
+### 👤 Profile and account
+
+- 🖼️ **Photo upload:** auto-cropped to a square and compressed under 400 KB
+- 🔒 **Blood group lock:** once saved, it can't be changed by accident. "Contact us to change" opens a pre-filled email to our team
+- 📨 **Security alerts:** you get an email whenever your password changes
+- 📜 **Donation history:** verified donations only
+- 🗑️ **Safe deletion:** OTP-protected, and removes your login and profile together
+
+### 🎨 Look and feel
+
+A full landing page, redesigned auth screens, and a two-tab **Need Blood / Donate Blood** screen shown right after login.
+
+<br/>
 
 ---
 
-## 🛠️ Stack
+## 🛠️ Tech Stack
 
-| Layer | Tech |
-|---|---|
-| Frontend | Next.js 14 (App Router) + TypeScript/JSX + Tailwind |
-| Auth | Firebase Auth — email/password + Google sign-in |
-| Database | Firebase Firestore |
-| Server / API routes | Next.js Route Handlers + Firebase Admin SDK (`firebase-admin`) |
-| Email delivery | Nodemailer over Gmail SMTP (OTP codes) |
-| Geo matching | `ngeohash` (precision-6 geohash) + haversine distance, client-side query |
-| Icons | lucide-react |
+<div align="center">
+
+| Layer | Technology |
+| :-- | :-- |
+| 🖥️ **Frontend** | Next.js 14 (App Router) · TypeScript / JSX · Tailwind CSS |
+| 🔐 **Authentication** | Firebase Auth (email/password + Google) |
+| 🗄️ **Database** | Firebase Firestore |
+| ⚙️ **Server / API** | Next.js Route Handlers · Firebase Admin SDK |
+| 📧 **Email (OTP)** | Nodemailer over Gmail SMTP |
+| 📍 **Geo matching** | `ngeohash` (precision 6) + haversine distance |
+| 🎯 **Icons** | lucide-react |
+
+</div>
+
+<br/>
 
 ---
 
-## 📦 Getting Started
+## 🚀 Quick Start
 
-### Prerequisites
-- Node.js 18+ and npm
-- A Firebase project
-- A Google account with an [App Password](https://myaccount.google.com/apppasswords)
-  for sending OTP emails via Gmail SMTP (see [Email OTP setup](#-email-otp-setup))
-
-### Setup
+**You'll need:** Node.js 18+, a Firebase project, and a Gmail [App Password](https://myaccount.google.com/apppasswords) for sending OTP emails.
 
 ```bash
+# 1. Clone
 git clone https://github.com/samsara0902/Raktjaal-connected-network-for-blood-donor-and-reciever.git
 cd Raktjaal-connected-network-for-blood-donor-and-reciever
+
+# 2. Install
 npm install
+
+# 3. Add your config
 cp .env.example .env.local
-```
 
-1. Create a Firebase project at [console.firebase.google.com](https://console.firebase.google.com).
-2. Enable **Firestore Database** (start in production mode) and paste the
-   rules from `firestore.rules` into the Rules tab.
-3. Enable **Authentication → Sign-in method → Email/Password**.
-4. Enable **Authentication → Sign-in method → Google**, and set a support
-   email when prompted.
-5. In Project settings → General → "Your apps", add a Web app and copy the
-   config values into `.env.local`.
-6. The Google sign-in popup requires `localhost` (dev) and your real domain
-   (prod) to be listed in **Authentication → Settings → Authorized domains**.
-   `localhost` is usually pre-authorized.
-7. Generate a Firebase Admin service account (Project settings → Service
-   accounts → Generate new private key) and fill in the
-   `FIREBASE_ADMIN_*` variables in `.env.local` — the OTP and account-deletion
-   API routes need this to verify ID tokens and write to Firestore as an
-   admin.
-8. Set up Gmail SMTP credentials for OTP delivery — see
-   [Email OTP setup](#-email-otp-setup) below.
-
-```bash
+# 4. Run
 npm run dev
 ```
 
-Visit `http://localhost:3000`.
+Open **http://localhost:3000** and you're live 🎉
+
+> 🔑 **Need the `.env.local` values?** Contact [@samsara0902](https://github.com/samsara0902) and we'll share the configuration with you. Never commit your real `.env.local` file to GitHub.
+
+<details>
+<summary><b>🔥 Firebase setup (step by step)</b></summary>
+
+<br/>
+
+1. Create a project at [console.firebase.google.com](https://console.firebase.google.com).
+2. Enable **Firestore Database** (production mode) and paste the contents of `firestore.rules` into the Rules tab.
+3. Go to **Authentication → Sign-in method** and enable **Email/Password** and **Google** (set a support email when asked).
+4. Under **Project settings → General → Your apps**, add a **Web app** and copy its config into `.env.local`.
+5. Make sure `localhost` (dev) and your real domain (prod) are in **Authentication → Settings → Authorized domains**.
+6. Generate a **service account key** (Project settings → Service accounts → Generate new private key) and fill in the `FIREBASE_ADMIN_*` variables.
+
+</details>
+
+<details>
+<summary><b>📧 Email OTP environment variables</b></summary>
+
+<br/>
+
+Add these **server-only** variables to `.env.local`:
+
+| Variable | What it is |
+| :-- | :-- |
+| `FIREBASE_ADMIN_PROJECT_ID` | From your service account key |
+| `FIREBASE_ADMIN_CLIENT_EMAIL` | From your service account key |
+| `FIREBASE_ADMIN_PRIVATE_KEY` | From your service account key (may contain `\n` line breaks) |
+| `SMTP_USER` | Gmail address that sends the OTP emails |
+| `SMTP_PASSWORD` | Gmail **App Password**, not your normal password (2-Step Verification must be on) |
+| `SMTP_HOST` | *Optional.* Defaults to `smtp.gmail.com` |
+| `SMTP_PORT` | *Optional.* Defaults to `465` |
+
+> 🔒 Never prefix these with `NEXT_PUBLIC_`. They must stay on the server.
+
+</details>
+
+<br/>
 
 ---
 
 ## 📁 Project Structure
 
+<details>
+<summary><b>Click to expand the folder tree</b></summary>
+
+<br/>
+
 ```
-Raktjaal-connected-network-for-blood-donor-and-reciever/
+Raktjaal/
 ├── src/
-│   ├── app/                          Next.js App Router pages
-│   │   ├── page.jsx                  Landing page
-│   │   ├── login/page.jsx            → legacy/AuthPage (login mode)
-│   │   ├── register/page.jsx         → legacy/AuthPage (register mode)
-│   │   ├── signup/page.jsx           Redirect shim: old /signup → /register
-│   │   ├── action/page.jsx           Post-login "Need Blood" / "Donate Blood" screen
-│   │   ├── profile/page.jsx          Account settings — profile, security, delete account
-│   │   ├── request/page.tsx          Requester form (no login required)
-│   │   ├── request/[id]/page.tsx     Match results for a submitted request
-│   │   ├── donor/signup/page.tsx     Donor profile form (auth required)
-│   │   ├── api/email-otp/send/route.ts    Generates + emails a 6-digit OTP
-│   │   ├── api/email-otp/verify/route.ts  Verifies an OTP (registration or deletion)
-│   │   ├── api/account/delete/route.ts    OTP-gated account + profile deletion
-│   │   ├── api/account/disable-2fa/route.ts  OTP-gated "turn off two-step"
-│   │   ├── api/email/password-changed/route.ts  "Password changed" security email
-│   │   ├── api/admin/unlock-blood-type/route.ts Admin-only blood group unlock
-│   │   ├── layout.tsx                Root layout — wraps app in AuthProvider + SiteChrome
-│   │   └── globals.css               Tailwind base + shared utility classes
+│   ├── app/                              # Pages and API routes (Next.js App Router)
+│   │   ├── page.jsx                      #   Landing page
+│   │   ├── login/ · register/            #   Auth screens (shared AuthPage)
+│   │   ├── action/                       #   "Need Blood" / "Donate Blood" screen
+│   │   ├── profile/                      #   Account settings, security, delete account
+│   │   ├── request/                      #   Request form + match results ([id])
+│   │   ├── donor/signup/                 #   Donor registration
+│   │   └── api/
+│   │       ├── email-otp/                #   Send + verify OTP
+│   │       ├── account/                  #   Delete account, disable 2-step
+│   │       ├── email/password-changed/   #   Security notification email
+│   │       └── admin/unlock-blood-type/  #   Admin-only blood group unlock
+│   │
 │   ├── frontend/
-│   │   ├── components/
-│   │   │   ├── SiteChrome.tsx        Full-bleed vs. shared-nav layout switch per route
-│   │   │   ├── NavBar.tsx            Header for shared-chrome routes
-│   │   │   ├── GoogleButton.tsx      "Continue with Google" button
-│   │   │   ├── DonorCard.tsx         Donor match result card
-│   │   │   └── legacy/AuthPage.jsx   Shared login/register screen + OTP verification UI
-│   │   └── hooks/
-│   │       ├── useAuth.tsx           Auth context (current Firebase user)
-│   │       └── useGeolocation.ts     Browser Geolocation API wrapper
+│   │   ├── components/                   #   NavBar, SiteChrome, DonorCard, GoogleButton, AuthPage
+│   │   └── hooks/                        #   useAuth, useGeolocation
+│   │
 │   └── backend/
-│       ├── lib/
-│       │   ├── firebase.ts           Firebase client app/Firestore/Auth init
-│       │   ├── firebaseAdmin.ts      Firebase Admin SDK init (server-only)
-│       │   ├── auth.ts               Email/password + Google auth helpers, OTP client calls, friendly errors
-│       │   ├── emailOtp.ts           Server-side OTP generation, hashing, and verification
-│       │   ├── userProfile.ts        users/{uid} profile CRUD (Firestore)
-│       │   ├── matching.ts           Geohash + haversine donor matching query
-│       │   └── geohash.ts            Geohash encode, search-cell neighbors, haversine distance
-│       └── types/index.ts            Shared types (Donor, BloodRequest, DonorMatch, ...)
-├── firestore.rules                   Security rules for donors/, users/, requests/
-└── .env.example                      Firebase + SMTP config template
+│       ├── lib/                          #   firebase, auth, emailOtp, matching, geohash, userProfile
+│       └── types/                        #   Shared types (Donor, BloodRequest, DonorMatch...)
+│
+├── firestore.rules                       # Database security rules
+└── .env.example                          # Config template
 ```
+
+</details>
+
+<br/>
 
 ---
 
-## 🔐 Auth model
+## 🔐 Security and Privacy
 
-- Donor documents live at `donors/{uid}`, where `uid` is the Firebase Auth
-  user id — the same value whether the person signed up with email/password
-  or Google. `authProvider` on the donor doc records which one was used
-  (`password` or `google.com`) for analytics only; it doesn't affect
-  matching.
-- Email/password accounts must verify a 6-digit OTP (sent to their own
-  inbox) before they can sign in. `signInWithEmail` checks
-  `cred.user.emailVerified`, and if it's `false`, it fires off a fresh OTP,
-  signs the session back out, and surfaces a "verify your email" message
-  rather than letting an unverified session through.
-- If someone signs in with Google and later tries to sign up with the same
-  email/password, Firebase throws `auth/account-exists-with-different-credential`,
-  which the app surfaces as a friendly error instead of failing silently.
-- `ensureUserProfile` backfills a `users/{uid}` profile doc on first Google
-  sign-in without clobbering any existing data.
-- Account deletion also requires a fresh OTP: `/api/account/delete` verifies
-  the code server-side, then deletes the `users/{uid}` Firestore doc and the
-  Firebase Auth user in the same request.
-- **Two-step verification**: turning it on needs an emailed OTP. Turning it
-  **off** also needs a fresh emailed OTP (`purpose: "disable2fa"`), checked by
-  `POST /api/account/disable-2fa`. Firestore rules stop the browser from
-  clearing `twoFactorEnabled` itself, so "Turn off" alone can't bypass it.
-- **Blood group lock** is enforced in `firestore.rules` too: `bloodType` can
-  only change while `bloodTypeUnlocked == true`, and only the server can set
-  that flag.
+People trust us with health-related details, so we take this seriously.
 
-### Admin: unlock a blood group
-After a user emails proof to `raktjaal@gmail.com`, unlock them with the same
-secret used for broadcasts (`ADMIN_BROADCAST_SECRET`):
+<table>
+<tr>
+<td width="50%" valign="top">
+
+### ✅ Already protected
+
+- 🔢 OTPs are **SHA-256 hashed**, expire in **10 minutes**, allow **5 wrong attempts**, with a **60-second resend cooldown**, all enforced server-side
+- 📵 Donor phone numbers are never shown in match lists
+- 🧱 Blood group changes are blocked by database rules, not just the UI
+- 🛑 Turning off two-step verification needs a fresh emailed OTP
+- 📬 OTP data is only touched by the server (Admin SDK)
+
+</td>
+<td width="50%" valign="top">
+
+### 🚧 Relaxed in Phase 1
+
+To keep hospital-side use friction-free, the current `firestore.rules` are permissive:
+
+- Donor documents are readable so matching can run client-side
+- Blood requests can be created without login
+
+**Before a public launch:** move `phone` into a subcollection or a Cloud Function–mediated reveal, so this is enforced at the database layer.
+
+</td>
+</tr>
+</table>
+
+<details>
+<summary><b>🛡️ Admin guide</b></summary>
+
+<br/>
+
+**Unlocking a user's blood group**
+
+When a user emails proof to `raktjaal@gmail.com`, unlock their account with the admin secret:
 
 ```bash
 curl -X POST https://YOUR-APP/api/admin/unlock-blood-type \
@@ -270,108 +330,90 @@ curl -X POST https://YOUR-APP/api/admin/unlock-blood-type \
   -d '{"secret":"<ADMIN_BROADCAST_SECRET>","email":"user@example.com"}'
 ```
 
-The user gets an in-app notification and can re-select their blood group once.
-Add `"lock": true` to re-lock without a change.
+The user gets an in-app notification and can re-select their blood group **once**, after which it locks again. Add `"lock": true` to re-lock without any change.
 
-### Deploying rules
-Rules changed (users guard, notification fields). Deploy them **before** the
-app: `firebase deploy --only firestore:rules`.
+**Deploying rules:** always deploy Firestore rules **before** the app.
 
----
+```bash
+firebase deploy --only firestore:rules
+```
 
-## 🔒 Security Note
+</details>
 
-The included `firestore.rules` are intentionally permissive for Phase 1 (no
-hospital accounts yet, matching the "no login friction" hospital-view goal):
-
-- Donor documents are **readable by anyone** so the match query can run
-  client-side — the app UI simply never displays the `phone` field outside
-  the donor's own session.
-- Blood requests are open-read/open-create with no auth gate.
-- The `emailOtps` collection has no client-facing Firestore rule because it's
-  only ever touched by the Admin SDK from the API routes — OTP hashes are
-  never exposed to, or writable by, the browser.
-
-Before a public launch, move `phone` into a subcollection or a Cloud
-Function–mediated reveal so this is enforced at the database layer, not just
-hidden in the UI.
-
----
-
-## 📧 Email OTP setup
-
-Account registration and account deletion both require a real 6-digit email
-OTP. Codes are generated, hashed, and checked server-side in
-`backend/lib/emailOtp.ts`; the Firebase Admin SDK verifies the signed-in
-user before an OTP is issued or checked. Delivery is handled by
-**Nodemailer over Gmail SMTP**.
-
-Add these server-only variables to `.env.local`:
-
-- `FIREBASE_ADMIN_PROJECT_ID`
-- `FIREBASE_ADMIN_CLIENT_EMAIL`
-- `FIREBASE_ADMIN_PRIVATE_KEY`
-- `SMTP_USER` — the Gmail address OTP emails are sent from
-- `SMTP_PASSWORD` — a Gmail [App Password](https://myaccount.google.com/apppasswords)
-  (not your regular account password — Gmail requires 2-Step Verification
-  to be enabled first)
-- `SMTP_HOST` — optional, defaults to `smtp.gmail.com`
-- `SMTP_PORT` — optional, defaults to `465`
-
-Do not prefix these server secrets with `NEXT_PUBLIC_`. The
-`FIREBASE_ADMIN_PRIVATE_KEY` value may contain `\n` line breaks.
-
-Install the added server dependencies with `npm install`, then run
-`npm run dev`.
+<br/>
 
 ---
 
 ## 🗺️ Roadmap
 
-**Phase 1 — Core flow**
-- Email/password + Google auth (with OTP-verified email), requester form,
-  donor signup, and static geohash + haversine matching — see
-  [What's Built](#-whats-built--phase-1-core-flow) above for the full
-  breakdown.
+```mermaid
+timeline
+    title RaktJaal Journey
+    Phase 1 : Core Flow
+            : Auth with OTP
+            : Requester form and donor signup
+            : Geohash + haversine matching
+    Phase 2 : Real-time
+            : Live donor list
+            : "I can help" opt-in contact reveal
+    Phase 3 : PWA
+            : Install to home screen
+            : Offline view
+    Phase 4 : Notifications
+            : Web push
+            : SMS / WhatsApp fallback
+    Phase 5 : India polish
+            : Hindi / English toggle
+            : Badges and health tips
+            : Low-bandwidth mode
+```
 
-**Phase 2 — Real-time**
-- Swap `getDocs` in `matching.ts` for `onSnapshot` so the donor list updates
-  live, sorted by distance/urgency.
-- Add an "I can help" action on `DonorCard` that reveals contact info only
-  after a donor opts in, mediated by a Cloud Function per the security note
-  above.
+| Phase | Focus | Status |
+| :-: | :-- | :-: |
+| **1** | Core flow: auth with OTP, requester form, donor signup, geohash matching | ✅ **Built** |
+| **2** | Real-time: live donor list (`onSnapshot`), "I can help" action that reveals contact info only after a donor opts in | 🔜 **Next** |
+| **3** | PWA: install to home screen, offline view of recent requests and profile | 📋 Planned |
+| **4** | Notifications: web push (Firebase Cloud Messaging) + SMS/WhatsApp fallback (Twilio) | 📋 Planned |
+| **5** | India-specific polish: Hindi/English toggle, donor badges, health tips, low-bandwidth mode | 📋 Planned |
 
-**Phase 3 — PWA layer**
-- `next-pwa`, a manifest + icons, "Add to Home Screen".
-- Cache last-seen requests and the donor's own profile for offline view.
-
-**Phase 4 — Notifications**
-- Firebase Cloud Messaging for web push.
-- A server route using the Twilio Node SDK for SMS/WhatsApp fallback to
-  donors without the PWA installed.
-
-**Phase 5 — India-specific polish**
-- Hindi/English toggle (`next-intl` or similar).
-- Donor badges, ratings, and post-donation health tips.
-- Low-bandwidth mode: lazy-load any map SDK, keep donor-list payloads minimal.
-
-**Wiring ActionPage's mock surface to something real** (not yet scheduled to
-a phase): a real nearby-users query (`matchDonors` in `backend/lib/matching`
-is the starting point), an actual maps SDK for the map panel, a Firestore
-collection for notification dispatch, and one for inbox messaging.
+<br/>
 
 ---
 
 ## 👥 Team
 
-Built at **PSIT Kanpur, Dept. of Data Science** as a mini project
-(2026–27) — Team CS-DS-3A-05.
+<div align="center">
+
+Built with ❤️ at **PSIT Kanpur, Department of Data Science**
+as a mini project (2026–27)
+
+**Team CS-DS-3A-05**
+
+</div>
+
+<br/>
 
 ---
 
-## 📧 Contact
+## 📬 Contact
 
-- **GitHub**: [@samsara0902](https://github.com/samsara0902)
-- **Instagram**: [@n_ashwar](https://instagram.com/n_ashwar)
-- **GitHub Issues**: [Report a bug](https://github.com/samsara0902/Raktjaal-connected-network-for-blood-donor-and-reciever/issues)
-- **Live demo**: [raktjaal.vercel.app](https://raktjaal.vercel.app/)
+<div align="center">
+
+[![GitHub](https://img.shields.io/badge/GitHub-samsara0902-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/samsara0902)
+[![Instagram](https://img.shields.io/badge/Instagram-n__ashwar-E4405F?style=for-the-badge&logo=instagram&logoColor=white)](https://instagram.com/n_ashwar)
+[![Live Demo](https://img.shields.io/badge/Live_Demo-raktjaal.vercel.app-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://raktjaal.vercel.app/)
+[![Issues](https://img.shields.io/badge/Report-a_Bug-c62828?style=for-the-badge&logo=github&logoColor=white)](https://github.com/samsara0902/Raktjaal-connected-network-for-blood-donor-and-reciever/issues)
+
+</div>
+
+<br/>
+
+<div align="center">
+
+### 🩸 One donation can save up to three lives.
+
+**If you like this project, give it a ⭐ and share it. You never know who might need it.**
+
+</div>
+
+<img src="https://capsule-render.vercel.app/api?type=waving&section=footer&height=140&color=0:ef5350,50:c62828,100:7f0000" alt="footer" width="100%" />
