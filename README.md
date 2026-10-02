@@ -1,4 +1,4 @@
-# RaktJaal — From social media chaos to 30-second donor matches
+# Raktjaal-connected-network-for-blood-donor-and-reciever
 
 Blood requests in India still mostly happen the way they always have: someone
 posts a frantic message on a WhatsApp group or Instagram story, it gets
@@ -150,8 +150,8 @@ scaffolded so Phases 2–5 (below) are additions, not rewrites.
 ### Setup
 
 ```bash
-git clone https://github.com/thattimelessman/RaktJaal.git
-cd RaktJaal
+git clone https://github.com/samsara0902/Raktjaal-connected-network-for-blood-donor-and-reciever.git
+cd Raktjaal-connected-network-for-blood-donor-and-reciever
 npm install
 cp .env.example .env.local
 ```
@@ -186,7 +186,7 @@ Visit `http://localhost:3000`.
 ## 📁 Project Structure
 
 ```
-RaktJaal/
+Raktjaal-connected-network-for-blood-donor-and-reciever/
 ├── src/
 │   ├── app/                          Next.js App Router pages
 │   │   ├── page.jsx                  Landing page
@@ -371,7 +371,7 @@ Built at **PSIT Kanpur, Dept. of Data Science** as a mini project
 
 ## 📧 Contact
 
-- **GitHub**: [@thattimelessman](https://github.com/thattimelessman)
-- **Instagram**: [@thattimelessman](https://instagram.com/thattimelessman)
-- **GitHub Issues**: [Report a bug](https://github.com/thattimelessman/RaktJaal/issues)
+- **GitHub**: [@samsara0902](https://github.com/samsara0902)
+- **Instagram**: [@thattimelessman](https://instagram.com/n_ashwar)
+- **GitHub Issues**: [Report a bug](https://github.com/samsara0902/Raktjaal-connected-network-for-blood-donor-and-reciever/issues)
 - **Live demo**: [raktjaal.vercel.app](https://raktjaal.vercel.app/)
