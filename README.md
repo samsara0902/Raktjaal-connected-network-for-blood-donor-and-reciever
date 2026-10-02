@@ -372,6 +372,6 @@ Built at **PSIT Kanpur, Dept. of Data Science** as a mini project
 ## 📧 Contact
 
 - **GitHub**: [@samsara0902](https://github.com/samsara0902)
-- **Instagram**: [@thattimelessman](https://instagram.com/n_ashwar)
+- **Instagram**: [@n_ashwar](https://instagram.com/n_ashwar)
 - **GitHub Issues**: [Report a bug](https://github.com/samsara0902/Raktjaal-connected-network-for-blood-donor-and-reciever/issues)
 - **Live demo**: [raktjaal.vercel.app](https://raktjaal.vercel.app/)
