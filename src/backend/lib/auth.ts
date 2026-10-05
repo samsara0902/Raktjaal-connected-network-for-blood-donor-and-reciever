@@ -253,4 +253,4 @@ export async function changeAccountPassword(currentPassword: string, newPassword
   } catch (err) {
     throw new Error(friendlyAuthError(err));
   }
-}
+}
