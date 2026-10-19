@@ -51,6 +51,7 @@ import type {
 } from "@/backend/types";
 
 export const SEARCH_RADIUS_KM = 25;
+export const FALLBACK_SEARCH_RADIUS_KM = 50;
 
 /**
  * Profile photos are stored as base64 data URLs (up to ~530 KB each). A request
@@ -222,12 +223,17 @@ export async function findNearbyDonors(
   bloodType: BloodType,
   lat: number,
   lng: number,
-  excludeUid: string
+  excludeUid: string,
+  radiusKm: number = SEARCH_RADIUS_KM
 ): Promise<DonorMatch[]> {
   // Every registered donor nearby is listed, whatever their own blood group:
   // a family member or a blood bank can help with any group. Same-group and
   // compatible donors are ranked first (see rankOf below).
-  const cells = wideGeohashSearchCells(lat, lng);
+  // The wider precision-4 cells cover the standard 25 km circle with one
+  // neighbor ring. For the 50 km fallback, three rings give enough coverage
+  // before the exact great-circle distance filter is applied.
+  const rings = radiusKm <= SEARCH_RADIUS_KM ? 1 : 3;
+  const cells = wideGeohashSearchCells(lat, lng, rings);
   const snaps = await Promise.all(
     cells.map((cell) =>
       getDocs(query(collection(db, "donors"), where("geohashWide", "==", cell)))
@@ -243,7 +249,7 @@ export async function findNearbyDonors(
       const donor = { uid: d.id, ...d.data() } as Donor;
       if (donor.available === false) continue;
       const distanceKm = haversineDistanceKm(lat, lng, donor.lat, donor.lng);
-      if (distanceKm <= SEARCH_RADIUS_KM) {
+      if (distanceKm <= radiusKm) {
         out.push({ ...donor, distanceKm, matchRank: rankOf(donor.bloodType, bloodType) });
       }
     }
@@ -251,6 +257,33 @@ export async function findNearbyDonors(
   return out.sort(
     (a, b) => (a.matchRank ?? 2) - (b.matchRank ?? 2) || a.distanceKm - b.distanceKm
   );
+}
+
+export async function findNearbyDonorsWithFallback(
+  bloodType: BloodType,
+  lat: number,
+  lng: number,
+  excludeUid: string
+): Promise<{ donors: DonorMatch[]; radiusKm: number }> {
+  const nearby = await findNearbyDonors(
+    bloodType,
+    lat,
+    lng,
+    excludeUid,
+    SEARCH_RADIUS_KM
+  );
+  if (nearby.length > 0) {
+    return { donors: nearby, radiusKm: SEARCH_RADIUS_KM };
+  }
+
+  const expanded = await findNearbyDonors(
+    bloodType,
+    lat,
+    lng,
+    excludeUid,
+    FALLBACK_SEARCH_RADIUS_KM
+  );
+  return { donors: expanded, radiusKm: FALLBACK_SEARCH_RADIUS_KM };
 }
 
 /** Which recipient groups each donor group can give red cells to. */
@@ -441,6 +474,7 @@ export async function createOpenRequest(input: CreateOpenRequestInput): Promise<
     cityKey: normalizeCityKey(input.city),
     status: "pending",
     threadId: null,
+    outreachConsentAt: now,
     createdAt: now,
     updatedAt: now,
   };

@@ -38,9 +38,9 @@ export function haversineDistanceKm(
 
 /**
  * Coarse precision used for the wide "donors near me" search on /action.
- * Precision 4 cells are ~39km x 19.5km, so the 3x3 block around a point is
- * guaranteed to cover at least ~29km in every direction. That safely contains
- * the 25km search radius, and the exact haversine filter then trims the result.
+ * Precision 4 cells are ~39km x 19.5km. One neighbor ring gives the 3x3 block
+ * used for the 25 km search; three rings give a 7x7 block for the 50 km
+ * fallback. The exact haversine filter trims both results to their true radius.
  * (Precision 6, above, is only ~1km of reach, far too small for this search.)
  */
 export const WIDE_GEOHASH_PRECISION = 4;
@@ -49,7 +49,28 @@ export function encodeWideGeohash(lat: number, lng: number): string {
   return ngeohash.encode(lat, lng, WIDE_GEOHASH_PRECISION);
 }
 
-export function wideGeohashSearchCells(lat: number, lng: number): string[] {
+export function wideGeohashSearchCells(
+  lat: number,
+  lng: number,
+  rings = 1
+): string[] {
   const center = encodeWideGeohash(lat, lng);
-  return [center, ...ngeohash.neighbors(center)];
+  const cells = new Set<string>([center]);
+  let frontier = [center];
+  const ringCount = Math.max(0, Math.floor(rings));
+
+  for (let ring = 0; ring < ringCount; ring++) {
+    const next = new Set<string>();
+    for (const cell of frontier) {
+      for (const neighbor of ngeohash.neighbors(cell)) {
+        if (!cells.has(neighbor)) {
+          cells.add(neighbor);
+          next.add(neighbor);
+        }
+      }
+    }
+    frontier = Array.from(next);
+  }
+
+  return Array.from(cells);
 }

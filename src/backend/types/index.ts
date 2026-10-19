@@ -106,6 +106,8 @@ export interface DonationRequest {
   /** Normalized city, used to query "all requests in my city". */
   cityKey: string;
   status: DonationRequestStatus;
+  /** Requester confirmed publication and in-app donor alerts when creating an open request. */
+  outreachConsentAt?: number;
   /** Set once approved; equals the request id. */
   threadId?: string | null;
   /** Set once the donor approves the request. */
