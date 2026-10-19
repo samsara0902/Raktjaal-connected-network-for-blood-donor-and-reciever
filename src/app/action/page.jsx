@@ -10,7 +10,7 @@ import { useLivePhoto } from "@/frontend/hooks/useLivePhoto";
 import {
   createDonationRequest,
   createOpenRequest,
-  findNearbyDonors,
+  findNearbyDonorsWithFallback,
   getDonorCard,
   getContactPhone,
   subscribeMessages,
@@ -18,6 +18,8 @@ import {
   confirmDonation,
   getRequestById,
   timeAgo,
+  SEARCH_RADIUS_KM,
+  FALLBACK_SEARCH_RADIUS_KM,
   MAX_INLINE_ATTACHMENT_BYTES,
 } from "@/backend/lib/requests";
 import {
@@ -1512,10 +1514,13 @@ function NeedBloodFlow({ me, sent, donorSync, onSent, onCancel, onReopen, onOpen
 
   const [donors, setDonors] = useState([]);
   const [searching, setSearching] = useState(false);
+  const [searchRadiusKm, setSearchRadiusKm] = useState(SEARCH_RADIUS_KM);
   const [searchError, setSearchError] = useState("");
   const [sendingId, setSendingId] = useState(null);
   const [sendError, setSendError] = useState("");
   const [confirmingId, setConfirmingId] = useState(null);
+  const [requestAuthorized, setRequestAuthorized] = useState(false);
+  const [replacementPrompt, setReplacementPrompt] = useState(false);
 
   const handleConfirmDonation = async (req) => {
     setConfirmingId(req.id);
@@ -1535,8 +1540,14 @@ function NeedBloodFlow({ me, sent, donorSync, onSent, onCancel, onReopen, onOpen
     let cancelled = false;
     setSearching(true);
     setSearchError("");
-    findNearbyDonors(bloodType, coords.lat, coords.lng, me.uid)
-      .then((rows) => { if (!cancelled) setDonors(rows); })
+    setSearchRadiusKm(SEARCH_RADIUS_KM);
+    findNearbyDonorsWithFallback(bloodType, coords.lat, coords.lng, me.uid)
+      .then(({ donors: rows, radiusKm }) => {
+        if (!cancelled) {
+          setDonors(rows);
+          setSearchRadiusKm(radiusKm);
+        }
+      })
       .catch((e) => { if (!cancelled) setSearchError(e?.message || "Couldn't search for donors."); })
       .finally(() => { if (!cancelled) setSearching(false); });
     return () => { cancelled = true; };
@@ -1586,12 +1597,40 @@ function NeedBloodFlow({ me, sent, donorSync, onSent, onCancel, onReopen, onOpen
     () => [...sent].filter((r) => !r.donorUid).sort((a, b) => (b.updatedAt || b.createdAt) - (a.updatedAt || a.createdAt))[0] || null,
     [sent]
   );
+  const pendingOpenRequests = useMemo(
+    () => [...sent]
+      .filter((r) => !r.donorUid && r.status === "pending")
+      .sort((a, b) => (b.updatedAt || b.createdAt) - (a.updatedAt || a.createdAt)),
+    [sent]
+  );
+  const duplicateOpenRequest = useMemo(() => {
+    if (!bloodType || !coords) return null;
+    const normalizeHospital = (value) => (value || "").trim().toLowerCase().replace(/\s+/g, " ");
+    const targetHospital = normalizeHospital(hospital.trim() || location);
+    if (!targetHospital) return null;
+    return pendingOpenRequests.find((r) =>
+      r.bloodType === bloodType
+      && r.units === units
+      && normalizeHospital(r.hospital) === targetHospital
+      && haversineKm(coords.lat, coords.lng, r.lat, r.lng) <= 2
+    ) || null;
+  }, [pendingOpenRequests, bloodType, coords, hospital, location, units]);
 
   // "Find donors" now PUBLISHES the request to Firestore first, so it exists (and
   // shows up for other users) even when no donor is registered nearby. Previously
   // a request was only written when a specific donor card was tapped, so an empty
   // search wrote nothing at all.
-  const submitRequest = async () => {
+  const submitRequest = async ({ allowReplacement = false } = {}) => {
+    setSubmitError("");
+    if (!requestAuthorized) {
+      setSubmitError("Confirm the request details and authorize donor alerts before posting.");
+      return;
+    }
+    if (pendingOpenRequests.length > 0 && !allowReplacement) {
+      setReplacementPrompt(true);
+      return;
+    }
+
     const requesterCity = (me.address?.city || "").trim();
     if (!requesterCity) {
       setSubmitError("Your profile is missing a city. Go to Profile → Address and save it first.");
@@ -1602,7 +1641,8 @@ function NeedBloodFlow({ me, sent, donorSync, onSent, onCancel, onReopen, onOpen
     try {
       let nearby = [];
       try {
-        nearby = await findNearbyDonors(bloodType, coords.lat, coords.lng, me.uid);
+        const result = await findNearbyDonorsWithFallback(bloodType, coords.lat, coords.lng, me.uid);
+        nearby = result.donors;
       } catch {
         /* notifying nearby donors is best-effort; the request itself is what matters */
       }
@@ -1681,7 +1721,7 @@ function NeedBloodFlow({ me, sent, donorSync, onSent, onCancel, onReopen, onOpen
             </div>
             <div>
               <h2 className="text-[19px] font-bold tracking-tight leading-tight" style={{ color: C.ink, fontFamily: F }}>What blood type do you need?</h2>
-              <p className="text-[12.5px] mt-0.5" style={{ color: C.sub, fontFamily: F }}>We'll only show donors of this exact type nearby.</p>
+              <p className="text-[12.5px] mt-0.5" style={{ color: C.sub, fontFamily: F }}>Donors are sorted by blood-group match and distance; hospital staff must confirm compatibility and eligibility.</p>
             </div>
           </div>
 
@@ -1691,7 +1731,7 @@ function NeedBloodFlow({ me, sent, donorSync, onSent, onCancel, onReopen, onOpen
               return (
                 <button
                   key={bt}
-                  onClick={() => setBloodType(bt)}
+                  onClick={() => { setRequestAuthorized(false); setReplacementPrompt(false); setBloodType(bt); }}
                   aria-pressed={selected}
                   className="relative flex items-center justify-center py-3.5 rounded-xl transition-all duration-150"
                   style={{
@@ -1754,7 +1794,12 @@ function NeedBloodFlow({ me, sent, donorSync, onSent, onCancel, onReopen, onOpen
             <MapPicker
               value={location}
               initialCoords={coords}
-              onPick={(label, c) => { setLocation(label); if (c) setCoords(c); }}
+              onPick={(label, c) => {
+                setRequestAuthorized(false);
+                setReplacementPrompt(false);
+                setLocation(label);
+                if (c) setCoords(c);
+              }}
             />
             <button
               onClick={() => setStep("details")}
@@ -1771,7 +1816,7 @@ function NeedBloodFlow({ me, sent, donorSync, onSent, onCancel, onReopen, onOpen
   }
 
   if (step === "details") {
-    const canGo = hospital.trim().length >= 2 && units >= 1;
+    const canGo = hospital.trim().length >= 2 && units >= 1 && requestAuthorized;
     return (
       <div className="flex-1 flex flex-col min-h-0">
         <div className="flex items-center gap-3 px-6 py-4 sm:px-8" style={{ borderBottom: `1px solid ${C.border}` }}>
@@ -1806,7 +1851,11 @@ function NeedBloodFlow({ me, sent, donorSync, onSent, onCancel, onReopen, onOpen
               <label className="block text-[12px] mb-1.5" style={{ color: C.sub, fontFamily: F, fontWeight: 600 }}>Hospital or place where blood is needed</label>
               <input
                 value={hospital}
-                onChange={(e) => setHospital(e.target.value)}
+                onChange={(e) => {
+                  setRequestAuthorized(false);
+                  setReplacementPrompt(false);
+                  setHospital(e.target.value);
+                }}
                 placeholder="e.g. Regency Hospital, Kanpur"
                 className="w-full text-sm px-4 py-3 rounded-xl outline-none"
                 style={{ background: C.chip, color: C.ink, fontFamily: F, border: `1px solid ${C.border}` }}
@@ -1817,14 +1866,22 @@ function NeedBloodFlow({ me, sent, donorSync, onSent, onCancel, onReopen, onOpen
               <label className="block text-[12px] mb-1.5" style={{ color: C.sub, fontFamily: F, fontWeight: 600 }}>Units needed</label>
               <div className="flex items-center gap-3">
                 <button
-                  onClick={() => setUnits((u) => Math.max(1, u - 1))}
+                  onClick={() => {
+                    setRequestAuthorized(false);
+                    setReplacementPrompt(false);
+                    setUnits((u) => Math.max(1, u - 1));
+                  }}
                   aria-label="Fewer units"
                   className="w-9 h-9 rounded-full text-lg leading-none"
                   style={{ border: `1px solid ${C.border}`, color: C.ink }}
                 >−</button>
                 <span className="text-base font-bold w-6 text-center" style={{ color: C.ink, fontFamily: F }}>{units}</span>
                 <button
-                  onClick={() => setUnits((u) => Math.min(20, u + 1))}
+                  onClick={() => {
+                    setRequestAuthorized(false);
+                    setReplacementPrompt(false);
+                    setUnits((u) => Math.min(20, u + 1));
+                  }}
                   aria-label="More units"
                   className="w-9 h-9 rounded-full text-lg leading-none"
                   style={{ border: `1px solid ${C.border}`, color: C.ink }}
@@ -1833,21 +1890,81 @@ function NeedBloodFlow({ me, sent, donorSync, onSent, onCancel, onReopen, onOpen
             </div>
 
             <label className="flex items-center gap-3 cursor-pointer select-none">
-              <input type="checkbox" checked={urgent} onChange={(e) => setUrgent(e.target.checked)} className="w-4 h-4 accent-[#D6303F]" />
+              <input
+                type="checkbox"
+                checked={urgent}
+                onChange={(e) => {
+                  setRequestAuthorized(false);
+                  setReplacementPrompt(false);
+                  setUrgent(e.target.checked);
+                }}
+                className="w-4 h-4 accent-[#D6303F]"
+              />
               <span className="text-sm" style={{ color: C.ink, fontFamily: F, fontWeight: 600 }}>This is urgent</span>
             </label>
+
+            <div className="rounded-2xl p-4" style={{ background: "#FAFAFA", border: `1px solid ${C.border}` }}>
+              <p className="text-[12px] leading-relaxed mb-3" style={{ color: C.sub, fontFamily: F }}>
+                Your request details—including your name, profile photo if set, blood group, units, hospital, and map pin—will be visible to signed-in RaktJaal users. Your phone stays private until a donor accepts. RaktJaal searches within {SEARCH_RADIUS_KM} km, then expands to {FALLBACK_SEARCH_RADIUS_KM} km only if no available donors are found nearby. Donor matches are not medical clearance; hospital staff must confirm compatibility and eligibility.
+              </p>
+              <label className="flex items-start gap-2.5 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={requestAuthorized}
+                  onChange={(e) => {
+                    setRequestAuthorized(e.target.checked);
+                    setReplacementPrompt(false);
+                  }}
+                  className="w-4 h-4 mt-0.5 accent-[#D6303F] shrink-0"
+                  aria-describedby="request-outreach-consent"
+                />
+                <span id="request-outreach-consent" className="text-[12px] leading-relaxed" style={{ color: C.ink, fontFamily: F, fontWeight: 600 }}>
+                  I confirm these details and authorize RaktJaal to publish this request and send in-app alerts to up to 20 available nearby donors.
+                </span>
+              </label>
+            </div>
 
             {submitError && (
               <p className="text-xs px-4 py-2.5 rounded-xl" style={{ background: C.brickTint, color: C.brickDark, fontFamily: F }}>{submitError}</p>
             )}
 
+            {replacementPrompt && pendingOpenRequests.length > 0 && (
+              <div role="alert" className="rounded-2xl p-4" style={{ background: C.brickTint, border: `1px solid #F3D3D5` }}>
+                <p className="text-[12px] leading-relaxed" style={{ color: C.brickDark, fontFamily: F }}>
+                  {duplicateOpenRequest
+                    ? `This looks like a duplicate of your live ${duplicateOpenRequest.bloodType} request at ${duplicateOpenRequest.hospital}.`
+                    : `You already have a live request for ${pendingOpenRequests[0].bloodType} blood at ${pendingOpenRequests[0].hospital}.`}
+                  {" "}Posting this will cancel {pendingOpenRequests.length === 1 ? "that request" : `all ${pendingOpenRequests.length} pending open requests`}.
+                </p>
+                <div className="flex flex-wrap gap-2 mt-3">
+                  <button
+                    type="button"
+                    onClick={() => { setReplacementPrompt(false); setStep("results"); }}
+                    className="text-[11px] px-3 py-2 rounded-full"
+                    style={{ border: `1px solid ${C.border}`, color: C.ink, fontFamily: F, fontWeight: 600 }}
+                  >
+                    Keep current request
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => submitRequest({ allowReplacement: true })}
+                    disabled={submitting}
+                    className="text-[11px] px-3 py-2 rounded-full text-white disabled:opacity-60"
+                    style={{ background: C.brick, fontFamily: F, fontWeight: 700 }}
+                  >
+                    {submitting ? "Posting…" : "Replace and post this request"}
+                  </button>
+                </div>
+              </div>
+            )}
+
             <button
-              onClick={submitRequest}
+              onClick={() => submitRequest()}
               disabled={!canGo || submitting}
               className="mt-2 px-6 py-3 rounded-full text-sm text-white flex items-center justify-center gap-1.5 transition-opacity"
               style={{ background: C.ink, fontFamily: F, fontWeight: 600, opacity: canGo && !submitting ? 1 : 0.35 }}
             >
-              {submitting ? "Posting your request…" : <>Post request &amp; find donors <ChevronRight size={15} /></>}
+              {submitting ? "Posting your request…" : <>Authorize &amp; post request <ChevronRight size={15} /></>}
             </button>
           </div>
         </div>
@@ -1862,11 +1979,15 @@ function NeedBloodFlow({ me, sent, donorSync, onSent, onCancel, onReopen, onOpen
         <div>
           <h2 className="text-lg font-bold tracking-tight" style={{ color: C.ink, fontFamily: F }}>Donors near {location || "you"}</h2>
           <p className="text-xs mt-0.5 flex items-center gap-1.5" style={{ color: C.sub, fontFamily: F }}>
-            {searching ? "Searching…" : `${matchingDonors.length} ${matchingDonors.length === 1 ? "donor" : "donors"}`} nearby · needed <BloodTypeBadge type={bloodType} /> · best match first
+            {searching ? "Searching…" : `${matchingDonors.length} ${matchingDonors.length === 1 ? "donor" : "donors"}`} · search radius {searchRadiusKm} km · needed <BloodTypeBadge type={bloodType} /> · best match first
           </p>
         </div>
         <button
-          onClick={() => setStep("type")}
+          onClick={() => {
+            setRequestAuthorized(false);
+            setReplacementPrompt(false);
+            setStep("type");
+          }}
           className="text-xs px-3.5 py-2 rounded-full transition-colors hover:bg-[#F4F4F5]"
           style={{ border: `1px solid ${C.border}`, color: C.ink, fontFamily: F, fontWeight: 600 }}
         >
@@ -1875,6 +1996,11 @@ function NeedBloodFlow({ me, sent, donorSync, onSent, onCancel, onReopen, onOpen
       </div>
 
       <div className="flex-1 overflow-y-auto rk-scroll px-6 py-4 sm:px-8 flex flex-col gap-2.5">
+        {!searching && searchRadiusKm > SEARCH_RADIUS_KM && (
+          <p className="text-[12px] px-4 py-2.5 rounded-xl" style={{ background: C.chip, color: C.sub, fontFamily: F }}>
+            Expanded the search to {searchRadiusKm} km because no available donors were found within {SEARCH_RADIUS_KM} km.
+          </p>
+        )}
         {openRequest && (
           <div className="px-4 py-3.5 rounded-2xl flex items-center gap-3 flex-wrap" style={{ background: C.sidebar, border: `1px solid ${C.border}` }}>
             <div className="min-w-0 flex-1">
@@ -1933,7 +2059,7 @@ function NeedBloodFlow({ me, sent, donorSync, onSent, onCancel, onReopen, onOpen
           <p className="text-sm text-center py-10" style={{ color: C.sub, fontFamily: F }}>Looking for donors near you…</p>
         ) : matchingDonors.length === 0 ? (
           <p className="text-sm text-center py-10" style={{ color: C.sub, fontFamily: F }}>
-            No registered donors within 25 km right now. Your request is still posted, and anyone who joins or opens RaktJaal nearby can see and accept it.
+            No available donors within {searchRadiusKm} km right now. Your request remains visible to signed-in donors; please confirm blood compatibility and eligibility with hospital staff.
           </p>
         ) : (
           matchingDonors.map((d) => {
